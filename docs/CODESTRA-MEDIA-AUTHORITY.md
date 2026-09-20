@@ -1,6 +1,6 @@
 # Codestra PostgreSQL Exporter Authority
 
-Principal repository: `appolon1908-hue/Codestra-Postgres-Exporter`
+Principal repository: `ingtrader21-spec/Codestra-Postgres-Exporter`
 
 Private service identity: `postgres-exporter:9187`
 
