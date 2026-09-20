@@ -22,7 +22,7 @@ jobs:
           python-version: '3.12'
       - run: |
           python -m pip install --disable-pip-version-check --no-cache-dir -r requirements-validation.txt
-          python scripts/validate_private_service_authority.py
+          python scripts/validate_private_service_authority.py
           python scripts/validate_monitoring_platform.py
           python -m unittest tests/test_monitoring_platform.py -v
           python -m unittest discover -s tests -p 'test_*.py'
