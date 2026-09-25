@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0",
   "upstream_clone_url": "https://github.com/prometheus-community/postgres_exporter.git",
-  "upstream_ref": "master",
+  "upstream_ref": "492776a8f00714a1091f4106d925534b3db5a5c6",
   "upstream_commit": "492776a8f00714a1091f4106d925534b3db5a5c6",
   "import_path": "upstream",
-  "synchronized_at": "2026-08-29T19:03:52.748428+00:00",
+  "synchronized_at": "2026-08-25T22:38:05-04:00",
   "deployment_enabled": false,
   "secret_material_allowed_in_git": false
 }

@@ -1,9 +1,10 @@
 {
   "schema_version": "1.0",
   "component": "PostgreSQL Exporter",
+  "codestra_repository": "appolon1908-hue/Codestra-Postgres-Exporter",
   "upstream_repository": "prometheus-community/postgres_exporter",
   "upstream_clone_url": "https://github.com/prometheus-community/postgres_exporter.git",
-  "upstream_ref": "master",
+  "upstream_ref": "492776a8f00714a1091f4106d925534b3db5a5c6",
   "import_path": "upstream",
   "deployment_enabled": false,
   "secret_material_allowed_in_git": false
