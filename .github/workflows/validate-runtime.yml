@@ -1,0 +1,80 @@
+name: Validate PostgreSQL Exporter runtime
+
+on:
+  pull_request:
+  push:
+    branches: [development, test, staging, production, main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Render and inspect compose authority
+        env:
+          POSTGRES_EXPORTER_IMAGE: example.invalid/postgres-exporter@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          CODESTRA_OBSERVABILITY_NETWORK: codestra-observability
+          CODESTRA_DATABASE_NETWORK: codestra-database
+          POSTGRES_EXPORTER_URI_SECRET: codestra-postgres-exporter-uri
+          POSTGRES_EXPORTER_USER_SECRET: codestra-postgres-exporter-user
+          POSTGRES_EXPORTER_PASSWORD_SECRET: codestra-postgres-exporter-password
+        run: |
+          set -euo pipefail
+          docker compose -f deploy/compose.yaml config --format json > /tmp/compose.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          compose = json.loads(Path('/tmp/compose.json').read_text())
+          runtime = json.loads(Path('config/codestra/runtime.v1.json').read_text())
+          service = compose['services']['postgres-exporter']
+
+          assert '@sha256:' in service['image']
+          assert service['user'] == '65534:65534'
+          assert service['read_only'] is True
+          assert service['cap_drop'] == ['ALL']
+          assert not service.get('ports')
+          assert service['expose'] == ['9187']
+          assert set(service['networks']) == {'observability', 'database'}
+          assert compose['networks']['observability']['external'] is True
+          assert compose['networks']['database']['external'] is True
+
+          env = service['environment']
+          expected_files = {
+              'DATA_SOURCE_URI_FILE': runtime['credentials']['uriFile'],
+              'DATA_SOURCE_USER_FILE': runtime['credentials']['userFile'],
+              'DATA_SOURCE_PASS_FILE': runtime['credentials']['passwordFile'],
+          }
+          for key, value in expected_files.items():
+              assert env[key] == value
+          assert not any(key in env for key in ('DATA_SOURCE_NAME', 'DATA_SOURCE_URI', 'DATA_SOURCE_USER', 'DATA_SOURCE_PASS'))
+          assert env['PG_EXPORTER_AUTO_DISCOVER_DATABASES'] == 'false'
+          assert env['PG_EXPORTER_WEB_TELEMETRY_PATH'] == '/metrics'
+
+          assert runtime['repository'] == 'appolon1908-hue/Codestra-Postgres-Exporter'
+          assert runtime['canonicalHostname'] == 'postgres-exporter'
+          assert runtime['dnsTarget'] is None
+          assert runtime['dnsAssigned'] is False
+          assert runtime['exposureClass'] == 'internal_private'
+          assert runtime['internalEndpoint'] == 'http://postgres-exporter:9187/metrics'
+          assert runtime['hostPortPublished'] is False
+          assert runtime['publicHostnameAssigned'] is False
+          assert runtime['publicNativePortAllowed'] is False
+          assert runtime['publicHttpIngressAllowed'] is False
+          assert runtime['networks']['internetIngressAllowed'] is False
+          assert runtime['prometheus']['targetActivation'] == 'pending'
+          assert runtime['activation']['deploymentEnabled'] is False
+          assert runtime['activation']['productionApproved'] is False
+          PY
+      - name: Reject mutable images and secret material
+        run: |
+          set -euo pipefail
+          ! grep -RInE 'image:.*(:latest|:[[:space:]]*$)' deploy
+          ! grep -RInE '(postgres(ql)?://[^[:space:]@]+:[^[:space:]@]+@|DATA_SOURCE_PASS=|PASSWORD[[:space:]]*=)' . --exclude-dir=.git --exclude-dir=upstream
+          ! grep -RInE '(SUPERUSER|CREATEDB|CREATEROLE|REPLICATION|BYPASSRLS)[[:space:]]*;' docs/create-monitoring-role.sql

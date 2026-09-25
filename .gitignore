@@ -9,3 +9,6 @@
 secrets/
 runtime/
 evidence/private/
+__pycache__/
+*.py[cod]
+dist/

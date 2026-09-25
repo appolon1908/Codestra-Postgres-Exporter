@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0.0",
+  "artifactModel": "verified-upstream-image-plus-signed-config",
+  "upstreamRepository": "prometheus-community/postgres_exporter",
+  "upstreamVersion": "v0.20.1",
+  "upstreamTagCommit": "867fbcac31cd18c143e244190ea9168cca069827",
+  "image": "quay.io/prometheuscommunity/postgres-exporter@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e",
+  "linuxAmd64Manifest": "sha256:4f3d82803c1f99ea5e767890de3557d2479ebbc711f63f2e04c663daa840057a",
+  "binaryRevisionReadback": "867fbcac31cd18c143e244190ea9168cca069827",
+  "upstreamSignature": {
+    "available": false,
+    "verification": "NO_SIGSTORE_SIGNATURE_PUBLISHED"
+  },
+  "productionActivation": false
+}

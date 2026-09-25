@@ -1,0 +1,58 @@
+name: codestra-postgres-exporter
+
+services:
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
+    restart: unless-stopped
+    user: "65534:65534"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    stop_grace_period: 15s
+    command:
+      - --web.listen-address=:9187
+      - --log.format=json
+      - --log.level=info
+    environment:
+      DATA_SOURCE_URI_FILE: /run/secrets/postgres_exporter_uri
+      DATA_SOURCE_USER_FILE: /run/secrets/postgres_exporter_user
+      DATA_SOURCE_PASS_FILE: /run/secrets/postgres_exporter_password
+      PG_EXPORTER_COLLECTION_TIMEOUT: 10s
+      PG_EXPORTER_WEB_TELEMETRY_PATH: /metrics
+      PG_EXPORTER_DISABLE_DEFAULT_METRICS: "false"
+      PG_EXPORTER_AUTO_DISCOVER_DATABASES: "false"
+    expose:
+      - "9187"
+    secrets:
+      - postgres_exporter_uri
+      - postgres_exporter_user
+      - postgres_exporter_password
+    networks:
+      observability:
+        aliases:
+          - postgres-exporter
+      database: {}
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+
+networks:
+  observability:
+    external: true
+    name: ${CODESTRA_OBSERVABILITY_NETWORK:-codestra-observability}
+  database:
+    external: true
+    name: ${CODESTRA_DATABASE_NETWORK:-codestra-database}
+
+secrets:
+  postgres_exporter_uri:
+    external: true
+    name: ${POSTGRES_EXPORTER_URI_SECRET:-codestra-postgres-exporter-uri}
+  postgres_exporter_user:
+    external: true
+    name: ${POSTGRES_EXPORTER_USER_SECRET:-codestra-postgres-exporter-user}
+  postgres_exporter_password:
+    external: true
+    name: ${POSTGRES_EXPORTER_PASSWORD_SECRET:-codestra-postgres-exporter-password}

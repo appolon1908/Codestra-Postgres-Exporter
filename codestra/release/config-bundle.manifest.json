@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0.0",
+  "component": "postgres-exporter",
+  "repository": "appolon1908-hue/Codestra-Postgres-Exporter",
+  "artifactType": "application/vnd.codestra.config.v1+tar",
+  "productionActivation": false,
+  "files": {
+    "deploy/compose.yaml": "535121b09de156d9f9c92d17efcd55277982a2c6328a6bdc7bba7b7d5e62dede",
+    "config/codestra/runtime.v1.json": "423cd8732d41fa879bfa01321c1e694ce436d69abd3135f2f42d494ad3b2d0ca",
+    "config/private-service-authority.v1.json": "cd8ae58abd2c72cf41af5057d0546864a788560100197baf9d8352d6a1b63acc",
+    "docs/create-monitoring-role.sql": "ffef4ef4bbeced0b0bf9925cd2b7751d634ee624bf490a9fa1814c36ff89dae7",
+    "codestra/api/service-contract.v1.json": "6fea0427e92f9442f34e352627e84776e92f394316d8992d7f432385326a0ac3",
+    "codestra/release/runtime-image.lock.json": "f6c81e43ee64ed7c0078f21fa661a89cdc228733bc366d47da267ee38a33ccfd"
+  }
+}

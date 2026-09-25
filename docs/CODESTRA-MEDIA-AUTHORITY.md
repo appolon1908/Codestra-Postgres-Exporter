@@ -2,9 +2,9 @@
 
 Principal repository: `appolon1908-hue/Codestra-Postgres-Exporter`
 
-Private service identity: `postgres-exporter:9187`
+Public DNS identity: none
 
-No public service hostname is currently assigned or required.
+Private service identity: `postgres-exporter:9187`
 
 ## Ownership
 
@@ -14,16 +14,22 @@ It does not own PostgreSQL runtime administration, application databases, Promet
 
 ## Exposure
 
-Private/internal only. The native exporter port must not be published to a host public interface or exposed through Caddy/Kong. Prometheus is the approved routine consumer.
+The exporter has no public hostname and remains **private/internal only**. Its container-local service identity is the only routine monitoring address.
+
+The native exporter port must not be published to a public host interface or exposed through Caddy/Kong for routine use. Prometheus is the approved routine consumer and should scrape through an approved private or network-restricted path.
 
 ## Database safety
 
 - Use a dedicated monitoring identity.
 - Prefer the built-in `pg_monitor` role plus only explicitly reviewed database CONNECT grants.
-- Forbid superuser, database-owner, replication administration and application-write privileges.
+- Forbid superuser, database-owner, bypass-RLS, replication administration and application-write privileges.
 - Require encrypted database transport where supported.
 - Load connection material from runtime secret files; never commit connection strings or passwords.
 - Custom queries require explicit review for cost, lock behavior, sensitive columns and metric cardinality.
+
+## Required monitoring coverage
+
+Baseline coverage includes connection count and saturation, transactions and transaction age, locks and blocked queries, deadlocks, database/table/index size, replication health and lag, WAL/checkpoint behavior, cache hit ratio, long-running transactions, vacuum/autovacuum health, dead tuples, reviewed bloat indicators, sequence exhaustion risk, and exporter health through `pg_up`.
 
 ## Activation evidence
 
@@ -44,4 +50,4 @@ Persistent: `main`, `development`, `test`, `staging`, `production`.
 
 Temporary: `feature/*`, `fix/*`, `upgrade/*`, `security/*`, `docs/*`, `hotfix/*`, optional `release/*`, `rollback/*`.
 
-Promotion: work -> development -> test -> staging -> production -> main.
+Promotion: work -> development -> test -> staging -> production -> main. Merge does not deploy.

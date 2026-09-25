@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "status": "ACTIVE_SOURCE_AUTHORITY",
+  "repository_id": 1350839865,
+  "repository": "appolon1908-hue/Codestra-Postgres-Exporter",
+  "public_hostname": null,
+  "private_service_identity": "postgres-exporter:9187",
+  "exposure": "PRIVATE_INTERNAL_ONLY",
+  "routine_consumer": "Prometheus on an approved private monitoring network",
+  "forbidden_public_hostname": "pgex.codestra.media",
+  "caddy_publication_allowed": false,
+  "kong_publication_allowed": false,
+  "host_public_port_allowed": false,
+  "required_controls": [
+    "immutable image digest",
+    "private monitoring and database network attachment",
+    "dedicated non-superuser monitoring role",
+    "runtime secret-file injection",
+    "approved custom queries only",
+    "connection and query timeouts",
+    "bounded metric cardinality",
+    "successful private Prometheus scrape",
+    "source-to-runtime and rollback evidence"
+  ]
+}
