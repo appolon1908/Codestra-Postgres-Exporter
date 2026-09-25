@@ -2,7 +2,7 @@
   "version": 1,
   "service": "postgres-exporter",
   "component": "PostgreSQL Exporter",
-  "repository": "appolon1908-hue/Codestra-Postgres-Exporter",
+  "repository": "ingtrader21-spec/Codestra-Postgres-Exporter",
   "internalEndpoint": "http://postgres-exporter:9187/metrics",
   "listenAddress": "0.0.0.0:9187",
   "hostPortPublished": false,
