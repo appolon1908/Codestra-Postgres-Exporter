@@ -81,3 +81,7 @@ A merge does not authorize deployment. Activation requires:
 8. confirmation that port `9187` and the service API remain inaccessible from the public Internet.
 
 `DEPLOYMENT_ENABLED=NO` remains binding until environment promotion gates explicitly authorize activation. No production database, exporter, Prometheus, Caddy, Kong, DNS, secret, or runtime is changed by documenting or validating this authority.
+
+## Monitoring platform contract
+
+`codestra/monitoring-platform.v1.json` declares this exporter's place in the three-plane model: telemetry data plane, Middleware as the operational controller (service catalog, monitoring state, incidents), OpenBao as the only secrets authority. `scripts/validate_monitoring_platform.py` fails closed on a published or non-loopback host port, an inline credential, a credential file without an OpenBao secret reference, a business effect, or (Blackbox) any probe module that is not read-only.

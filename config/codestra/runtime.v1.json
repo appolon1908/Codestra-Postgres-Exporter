@@ -24,7 +24,9 @@
     "userFile": "/run/secrets/postgres_exporter_user",
     "passwordFile": "/run/secrets/postgres_exporter_password",
     "secretMaterialAllowedInGit": false,
-    "openBaoPathPattern": "codestra/<environment>/postgres-exporter/*"
+    "openBaoPathPattern": "codestra/<environment>/observability/exporters/postgres/*",
+    "openBaoWorkloadIdentity": "postgres-exporter",
+    "secretReferences": "codestra/secret-references.v1.json"
   },
   "databasePolicy": {
     "dedicatedMonitoringIdentityRequired": true,
