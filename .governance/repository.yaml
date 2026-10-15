@@ -1,0 +1,12 @@
+version: 1
+repository: Codestra-Postgres-Exporter
+repository_url: https://github.com/ingtrader21-spec/Codestra-Postgres-Exporter.git
+canonical_path: /home/codestra/Worktrees/Monitoring-Active-20260926/Codestra-Postgres-Exporter
+active_worktree: /home/codestra/Worktrees/Monitoring-Active-20260926/Codestra-Postgres-Exporter
+active_branch: governance/single-active-lane-20260926
+base_branch: main
+base_sha: d9eaaa0ebc59429d3e9f9a9bbd35515a34e60e7b
+upstream_ref: origin/main
+publication_branch: governance/single-active-lane-20260926
+production_effects_allowed: false
+certification_mode: isolated_exact_sha
