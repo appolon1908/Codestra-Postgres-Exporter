@@ -1,110 +1,195 @@
 name: Codestra PostgreSQL Exporter Source Sync
 
 on:
-  workflow_dispatch:
   push:
     branches: [main]
     paths:
       - CODESTRA_UPSTREAM.json
       - config/codestra/runtime.v1.json
       - .github/workflows/upstream-source-sync.yml
+  workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
+  pull-requests: write
 
 concurrency:
   group: postgres-exporter-upstream-sync
   cancel-in-progress: false
 
 jobs:
-  validate-and-sync:
+  sync:
+    if: github.actor != 'github-actions[bot]' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
+    timeout-minutes: 120
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Check out Codestra authority
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 0
+          persist-credentials: true
 
-      - name: Validate Codestra authority contract
+      - name: Set up pinned Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+
+      - name: Install pinned parser
+        run: python -m pip install --disable-pip-version-check --no-cache-dir PyYAML==6.0.3
+
+      - name: Validate Codestra runtime contract
         shell: bash
         run: |
           set -Eeuo pipefail
-          python3 - <<'PY'
+          mapfile -t refs < <(python - <<'PY'
           import json
           from pathlib import Path
-
-          upstream = json.loads(Path("CODESTRA_UPSTREAM.json").read_text())
-          runtime = json.loads(Path("config/codestra/runtime.v1.json").read_text())
-
-          assert upstream["upstream_clone_url"] == "https://github.com/prometheus-community/postgres_exporter.git"
-          assert upstream["upstream_ref"] == "master"
-          assert upstream["import_path"] == "upstream"
-          assert upstream["deployment_enabled"] is False
-          assert upstream["secret_material_allowed_in_git"] is False
-
-          assert runtime["internalEndpoint"] == "http://postgres-exporter:9187/metrics"
-          assert runtime["hostPortPublished"] is False
-          assert runtime["publicHostnameAssigned"] is False
-          assert runtime["publicNativePortAllowed"] is False
-          assert runtime["credentials"]["secretMaterialAllowedInGit"] is False
-          assert runtime["databasePolicy"]["superuserAllowed"] is False
-          assert runtime["databasePolicy"]["applicationWriteAllowed"] is False
-          assert runtime["prometheus"]["targetActivation"] == "pending"
-          assert runtime["activation"]["deploymentEnabled"] is False
-          assert runtime["activation"]["productionApproved"] is False
+          source = json.loads(Path('CODESTRA_UPSTREAM.json').read_text())
+          lock = json.loads(Path('CODESTRA_UPSTREAM_LOCK.json').read_text())
+          print(source.get('upstream_ref', ''))
+          print(lock.get('upstream_commit', ''))
           PY
+          )
+          validator_args=()
+          if [[ "${refs[0]}" != "${refs[1]}" ]]; then
+            [[ "$GITHUB_EVENT_NAME" == push ]]
+            before="${{ github.event.before }}"
+            [[ "$before" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$before" != '0000000000000000000000000000000000000000' ]]
+            mapfile -t changed < <(git diff --name-only "$before" "$GITHUB_SHA")
+            (( ${#changed[@]} == 1 ))
+            [[ "${changed[0]}" == CODESTRA_UPSTREAM.json ]]
+            validator_args+=(--allow-exact-pin-bootstrap)
+          fi
+          python scripts/validate_repository_security.py "${validator_args[@]}"
 
-      - name: Import official upstream source
+      - name: Import exact official upstream source
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
           mapfile -t values < <(python3 - <<'PY'
           import json
           from pathlib import Path
-          data = json.loads(Path("CODESTRA_UPSTREAM.json").read_text())
-          print(data["upstream_clone_url"])
-          print(data["upstream_ref"])
-          print(data["import_path"])
+          data = json.loads(Path('CODESTRA_UPSTREAM.json').read_text())
+          print(data['upstream_clone_url'])
+          print(data['upstream_ref'])
+          print(data['import_path'])
           PY
           )
-
           UPSTREAM_URL="${values[0]}"
           UPSTREAM_REF="${values[1]}"
           IMPORT_PATH="${values[2]}"
-
-          test "$UPSTREAM_URL" = "https://github.com/prometheus-community/postgres_exporter.git"
-          test "$UPSTREAM_REF" = "master"
-          test "$IMPORT_PATH" = "upstream"
+          [[ "$UPSTREAM_URL" == 'https://github.com/prometheus-community/postgres_exporter.git' ]]
+          [[ "$UPSTREAM_REF" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$IMPORT_PATH" == upstream ]]
 
           rm -rf .codestra-upstream-src "$IMPORT_PATH"
-          GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 --branch "$UPSTREAM_REF" "$UPSTREAM_URL" .codestra-upstream-src
+          git init --quiet .codestra-upstream-src
+          git -C .codestra-upstream-src remote add origin "$UPSTREAM_URL"
+          GIT_LFS_SKIP_SMUDGE=1 git -C .codestra-upstream-src fetch --depth 1 --no-tags origin "$UPSTREAM_REF"
+          git -C .codestra-upstream-src checkout --quiet --detach FETCH_HEAD
           UPSTREAM_SHA="$(git -C .codestra-upstream-src rev-parse HEAD)"
+          [[ "$UPSTREAM_SHA" == "$UPSTREAM_REF" ]]
+          UPSTREAM_TIMESTAMP="$(git -C .codestra-upstream-src show -s --format=%cI "$UPSTREAM_SHA")"
           rm -rf .codestra-upstream-src/.git
           mv .codestra-upstream-src "$IMPORT_PATH"
 
-          export UPSTREAM_URL UPSTREAM_REF UPSTREAM_SHA
+          export UPSTREAM_URL UPSTREAM_REF UPSTREAM_SHA UPSTREAM_TIMESTAMP
           python3 - <<'PY'
           import json
           import os
-          from datetime import datetime, timezone
           from pathlib import Path
 
-          lock = {
-              "schema_version": "1.0",
-              "upstream_clone_url": os.environ["UPSTREAM_URL"],
-              "upstream_ref": os.environ["UPSTREAM_REF"],
-              "upstream_commit": os.environ["UPSTREAM_SHA"],
-              "import_path": "upstream",
-              "synchronized_at": datetime.now(timezone.utc).isoformat(),
-              "deployment_enabled": False,
-              "secret_material_allowed_in_git": False,
-          }
-          Path("CODESTRA_UPSTREAM_LOCK.json").write_text(json.dumps(lock, indent=2) + "\n")
+          Path('CODESTRA_UPSTREAM_LOCK.json').write_text(json.dumps({
+              'schema_version': '1.0',
+              'upstream_clone_url': os.environ['UPSTREAM_URL'],
+              'upstream_ref': os.environ['UPSTREAM_REF'],
+              'upstream_commit': os.environ['UPSTREAM_SHA'],
+              'import_path': 'upstream',
+              'synchronized_at': os.environ['UPSTREAM_TIMESTAMP'],
+              'deployment_enabled': False,
+              'secret_material_allowed_in_git': False,
+          }, indent=2) + '\n')
           PY
 
-          git config user.name "codestra-upstream-sync"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A upstream CODESTRA_UPSTREAM_LOCK.json
-          git diff --cached --quiet && exit 0
-          git commit -m "vendor: sync official PostgreSQL Exporter upstream ${UPSTREAM_SHA}"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          git config user.name 'codestra-upstream-sync'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          export GIT_AUTHOR_DATE="$UPSTREAM_TIMESTAMP"
+          export GIT_COMMITTER_DATE="$UPSTREAM_TIMESTAMP"
+          readonly SYNC_BRANCH="sync/postgres-exporter-upstream-${UPSTREAM_SHA}-${GITHUB_SHA}"
+          git switch --create "$SYNC_BRANCH"
+          git fetch --depth 1 --no-tags "$UPSTREAM_URL" "$UPSTREAM_SHA"
+          git rm -r --cached --quiet --ignore-unmatch upstream
+          git read-tree --prefix=upstream/ "${UPSTREAM_SHA}^{tree}"
+          git add CODESTRA_UPSTREAM_LOCK.json
+          if git diff --cached --quiet; then
+            echo 'Exact upstream snapshot already current.'
+            exit 0
+          fi
+          git commit -m "vendor(postgres-exporter): Sync official upstream ${UPSTREAM_SHA}"
+
+          LOCAL_SHA="$(git rev-parse HEAD)"
+          REMOTE_SHA="$(git ls-remote --heads origin "refs/heads/${SYNC_BRANCH}" | awk '{print $1}')"
+          if [[ -n "$REMOTE_SHA" ]]; then
+            git fetch --no-tags origin \
+              "refs/heads/${SYNC_BRANCH}:refs/remotes/origin/${SYNC_BRANCH}"
+            remote_ref="refs/remotes/origin/${SYNC_BRANCH}"
+            [[ "$(git rev-parse "$remote_ref")" == "$REMOTE_SHA" ]]
+            [[ "$(git rev-parse "${remote_ref}:upstream")" == \
+              "$(git rev-parse 'HEAD:upstream')" ]]
+            [[ "$(git rev-parse "${remote_ref}:CODESTRA_UPSTREAM_LOCK.json")" == \
+              "$(git rev-parse 'HEAD:CODESTRA_UPSTREAM_LOCK.json')" ]]
+            mapfile -t remote_parents < <(git show -s --format=%P "$remote_ref")
+            read -r -a remote_parent_values <<< "${remote_parents[0]}"
+            (( ${#remote_parent_values[@]} == 1 ))
+            [[ "${remote_parent_values[0]}" == "$GITHUB_SHA" ]]
+            mapfile -t remote_changes < <(
+              git diff --name-only "${remote_parent_values[0]}" "$remote_ref"
+            )
+            (( ${#remote_changes[@]} >= 1 ))
+            lock_changed=0
+            for changed_path in "${remote_changes[@]}"; do
+              [[ "$changed_path" == CODESTRA_UPSTREAM_LOCK.json || \
+                "$changed_path" == upstream/* ]]
+              if [[ "$changed_path" == CODESTRA_UPSTREAM_LOCK.json ]]; then
+                lock_changed=1
+              fi
+            done
+            (( lock_changed == 1 ))
+            LOCAL_SHA="$REMOTE_SHA"
+          else
+            git push origin "HEAD:refs/heads/${SYNC_BRANCH}"
+          fi
+
+          mapfile -t OPEN_PRS < <(
+            gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls" \
+              -f state=open \
+              -f base="main" \
+              -f head="${GITHUB_REPOSITORY_OWNER}:${SYNC_BRANCH}" \
+              -f per_page=100 \
+              --paginate \
+              --jq '.[] | [.number,.base.ref,.head.ref,.head.sha,.head.repo.full_name] | @tsv'
+          )
+          if (( ${#OPEN_PRS[@]} == 1 )); then
+            IFS=$'\t' read -r pr_number pr_base pr_head pr_head_sha pr_repository extra <<< "${OPEN_PRS[0]}"
+            [[ "$pr_number" =~ ^[1-9][0-9]*$ ]]
+            [[ "$pr_base" == "main" ]]
+            [[ "$pr_head" == "$SYNC_BRANCH" ]]
+            [[ "$pr_head_sha" == "$LOCAL_SHA" ]]
+            [[ "$pr_repository" == "$GITHUB_REPOSITORY" ]]
+            [[ -z "${extra:-}" ]]
+          elif (( ${#OPEN_PRS[@]} > 1 )); then
+            echo 'Multiple open synchronization pull requests found.' >&2
+            exit 3
+          elif (( ${#OPEN_PRS[@]} == 0 )); then
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$SYNC_BRANCH" \
+              --title "vendor(postgres-exporter): Sync reviewed official upstream ${UPSTREAM_SHA}" \
+              --body "Pins and imports exact official PostgreSQL Exporter commit ${UPSTREAM_SHA}. The private, least-privilege runtime contract is preserved and deployment remains disabled. Normal source validation and independent review are required."
+          fi
+          gh workflow run validate.yml --repo "$GITHUB_REPOSITORY" --ref "$SYNC_BRANCH"
